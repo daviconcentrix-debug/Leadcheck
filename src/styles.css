@@ -1,0 +1,128 @@
+:root {
+  --bg: #f3efe7;
+  --surface: #fbf9f5;
+  --ink: #1b1916;
+  --muted: #6f6a62;
+  --subtle: #9a948a;
+  --forest: #1e3d32;
+  --forest-fg: #f3efe7;
+  --line: rgba(27, 25, 22, 0.12);
+  --line-strong: rgba(27, 25, 22, 0.22);
+  --alert: #8c2f24;
+  --alert-soft: #f4e6e2;
+  --ok: #2f5d45;
+  --ok-soft: #e4eee8;
+  --shadow: 0 0 0 1px rgba(27, 25, 22, 0.06), 0 1px 2px -1px rgba(27, 25, 22, 0.06),
+    0 2px 4px 0 rgba(27, 25, 22, 0.04);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Figtree", system-ui, sans-serif;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  background-image: radial-gradient(rgba(27, 25, 22, 0.035) 0.6px, transparent 0.6px);
+  background-size: 7px 7px;
+}
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+a {
+  color: inherit;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.rise-in {
+  animation: rise-in 400ms var(--ease) both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes scan {
+  0% {
+    transform: translateY(-20%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(220%);
+    opacity: 0;
+  }
+}
+
+.scan-line {
+  animation: scan 1.6s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
