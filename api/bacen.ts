@@ -28,6 +28,8 @@ const FALLBACK = {
     { month: "2026-05", monthlyRate: 1.97 },
     { month: "2026-06", monthlyRate: 1.97 },
   ],
+  ratesConsistent: true,
+  impliedAnnual: 26.44,
   source: "cache" as const,
 };
 
@@ -121,9 +123,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .filter((point) => Number.isFinite(point.monthlyRate))
       .slice(-12);
 
+    const monthlyRate = Number(monthlyPoint.valor);
+    const annualRate = annualPoint ? Number(annualPoint.valor) : null;
+    const impliedAnnual =
+      Number.isFinite(monthlyRate) ? (Math.pow(1 + monthlyRate / 100, 12) - 1) * 100 : null;
+    const ratesConsistent =
+      annualRate != null &&
+      impliedAnnual != null &&
+      Math.abs(impliedAnnual - annualRate) / Math.max(Math.abs(impliedAnnual), 0.01) <= 0.15;
+
     return res.status(200).json({
-      monthlyRate: Number(monthlyPoint.valor),
-      annualRate: annualPoint ? Number(annualPoint.valor) : null,
+      monthlyRate,
+      annualRate,
+      impliedAnnual: impliedAnnual != null ? Number(impliedAnnual.toFixed(4)) : null,
+      ratesConsistent,
       period: monthLabel(ym),
       observedAt: monthlyPoint.data,
       seriesName: SERIES_LABEL,

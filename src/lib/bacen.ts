@@ -4,6 +4,8 @@ export type BacenPoint = {
 };
 
 export type BacenResult = {
+  ratesConsistent?: boolean;
+  impliedAnnual?: number | null;
   monthlyRate: number;
   annualRate: number | null;
   period: string;
@@ -33,6 +35,8 @@ const FALLBACK: BacenResult = {
     { month: "2026-05", monthlyRate: 1.97 },
     { month: "2026-06", monthlyRate: 1.97 },
   ],
+  ratesConsistent: true,
+  impliedAnnual: 26.44,
   source: "cache",
 };
 

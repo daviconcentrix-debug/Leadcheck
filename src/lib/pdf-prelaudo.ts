@@ -2,6 +2,7 @@ import { formatBRL, formatRate, maskCpfHidden, monthLabel } from "./br";
 import type { Lead } from "./leads";
 import type { SavingsEstimate } from "./simulate";
 import { scoreLead, tierLabel } from "./score";
+import { annualEffectiveFromMonthly, formatCet } from "./cet";
 
 function esc(s: string) {
   return s
@@ -81,6 +82,18 @@ export function openPrelaudoPrint(lead: Lead, savings: SavingsEstimate | null) {
       <tr><td>Economia total no prazo</td><td><strong>${esc(formatBRL(savings.totalSavings))}</strong></td></tr>
     </table>
     <p class="muted" style="margin:10px 0 0">Estimativa com base na parcela informada e na média Bacen. Não substitui cálculo pericial com o contrato completo.</p>
+  </div>`
+      : ""
+  }
+
+  ${
+    lead.bacenMonthly != null
+      ? `<h2>CET / taxa efetiva (aprox.)</h2>
+  <div class="card">
+    <p style="margin:0">Referência a partir da média Bacen: <strong>${esc(
+      formatCet(lead.bacenMonthly, annualEffectiveFromMonthly(lead.bacenMonthly)),
+    )}</strong></p>
+    <p class="muted" style="margin:8px 0 0">CET oficial exige o fluxo completo do contrato (tarifas, IOF, prestamista). Este valor é só referência de mercado.</p>
   </div>`
       : ""
   }

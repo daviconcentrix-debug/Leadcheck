@@ -41,6 +41,13 @@ import { scoreLead, tierLabel } from "./lib/score";
 import { estimateSavingsVsBacen, type SavingsEstimate } from "./lib/simulate";
 import { buildSpecialistMessage, clientWaLink } from "./lib/whatsapp-templates";
 import { SGS_VEICULOS_PF } from "./lib/sgs-catalog";
+import {
+  clearBackofficeSession,
+  hasLocalSession,
+  loginBackofficeSmart,
+  verifyBackofficeSession,
+} from "./lib/auth";
+import { annualEffectiveFromMonthly, formatCet } from "./lib/cet";
 
 type View = "funnel" | "backoffice";
 
@@ -186,7 +193,7 @@ function StepProgress({ step, total }: { step: number; total: number }) {
   );
 }
 
-function Funnel({ onBackoffice }: { onBackoffice: () => void }) {
+function Funnel({ onBackoffice: _onBackoffice }: { onBackoffice: () => void }) {
   const [step, setStep] = useState(1);
   const [lead, setLead] = useState<Lead>(createLeadDraft);
   const [bacen, setBacen] = useState<BacenResult | null>(null);
@@ -410,13 +417,7 @@ function Funnel({ onBackoffice }: { onBackoffice: () => void }) {
         <p style={{ margin: "0 0 12px" }}>
           Não somos instituição financeira. A consulta usa dados públicos do Banco Central (SGS). O pré-laudo não substitui análise jurídica completa.
         </p>
-        <button
-          type="button"
-          onClick={onBackoffice}
-          style={{ background: "none", border: "none", color: "var(--muted)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: 12 }}
-        >
-          Área da equipe
-        </button>
+        
       </footer>
     </div>
   );
@@ -653,6 +654,18 @@ function StepBacen({
           </div>
         );
       })() : null}
+
+      {result.monthlyRate != null ? (
+        <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+          Equivalente efetiva aprox.:{" "}
+          <strong>{formatCet(result.monthlyRate, annualEffectiveFromMonthly(result.monthlyRate))}</strong>
+          {result.ratesConsistent === false ? (
+            <span style={{ color: "var(--alert)" }}> · atenção: série anual e mensal divergem</span>
+          ) : result.ratesConsistent ? (
+            <span> · séries mensal/anual consistentes</span>
+          ) : null}
+        </p>
+      ) : null}
 
       <p style={{ margin: 0, fontSize: 11, color: "var(--subtle)" }}>
         Séries: {SGS_VEICULOS_PF.mensal.code} (% a.m.) e {SGS_VEICULOS_PF.anual.code} (% a.a.) — {SGS_VEICULOS_PF.mensal.label.split("—")[0].trim()}.
@@ -925,15 +938,114 @@ function Success({
 }
 
 function Backoffice({ onHome }: { onHome: () => void }) {
+  const [authed, setAuthed] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [filter, setFilter] = useState<"todos" | "quitacao" | "prestamista" | "reduzir" | "pagos">("todos");
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!hasLocalSession()) {
+        if (!cancelled) {
+          setAuthed(false);
+          setAuthChecking(false);
+        }
+        return;
+      }
+      const ok = await verifyBackofficeSession();
+      if (!cancelled) {
+        setAuthed(ok);
+        setAuthChecking(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authed) return;
     setLeads(loadLeads());
     setSettings(loadSettings());
-  }, []);
+  }, [authed]);
+
+  async function handleLogin(e: FormEvent) {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      await loginBackofficeSmart(password);
+      setAuthed(true);
+      setPassword("");
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Falha no login");
+      setAuthed(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  function handleLogout() {
+    clearBackofficeSession();
+    setAuthed(false);
+  }
+
+  if (authChecking) {
+    return (
+      <div style={{ maxWidth: 420, margin: "48px auto", padding: 16, textAlign: "center" }}>
+        <p style={{ color: "var(--muted)" }}>Verificando acesso…</p>
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return (
+      <div style={{ maxWidth: 420, margin: "0 auto", padding: "48px 16px" }}>
+        <button
+          type="button"
+          onClick={onHome}
+          style={{ background: "none", border: "none", color: "var(--muted)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: 14, marginBottom: 24, cursor: "pointer" }}
+        >
+          ← Voltar ao funil
+        </button>
+        <h1 className="font-display" style={{ margin: "0 0 8px", fontSize: 28 }}>
+          Área da equipe
+        </h1>
+        <p style={{ margin: "0 0 20px", color: "var(--muted)", fontSize: 14, lineHeight: 1.5 }}>
+          Acesso restrito. A senha é validada no servidor (variável de ambiente{" "}
+          <code>BACKOFFICE_PASSWORD</code>) e não fica embutida no JavaScript público do funil.
+        </p>
+        <form onSubmit={handleLogin} style={{ display: "grid", gap: 14 }}>
+          <Field label="Senha do painel">
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+          </Field>
+          {authError ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--alert)" }}>{authError}</p>
+          ) : null}
+          <Button type="submit" size="lg" disabled={authLoading || !password}>
+            {authLoading ? "Entrando…" : "Entrar"}
+          </Button>
+        </form>
+        <p style={{ marginTop: 16, fontSize: 11, color: "var(--subtle)", lineHeight: 1.5 }}>
+          Vercel → Project → Settings → Environment Variables → BACKOFFICE_PASSWORD
+        </p>
+      </div>
+    );
+  }
+
 
   const filtered = leads.filter((lead) => {
     if (filter === "quitacao") return lead.flags.quitacao;
@@ -967,9 +1079,14 @@ function Backoffice({ onHome }: { onHome: () => void }) {
           <BrandMark />
           <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--muted)" }}>Painel da equipe · leads neste aparelho · exportação CSV</p>
         </div>
-        <button type="button" onClick={onHome} style={{ background: "none", border: "none", color: "var(--muted)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: 14 }}>
-          Voltar ao funil
-        </button>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button type="button" onClick={handleLogout} style={{ background: "none", border: "none", color: "var(--alert)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: 14, cursor: "pointer" }}>
+            Sair
+          </button>
+          <button type="button" onClick={onHome} style={{ background: "none", border: "none", color: "var(--muted)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: 14, cursor: "pointer" }}>
+            Voltar ao funil
+          </button>
+        </div>
       </header>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 32 }}>

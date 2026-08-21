@@ -81,3 +81,21 @@ vercel.json           # SPA rewrites
 - Template WhatsApp por flag
 - Pré-laudo em PDF (imprimir / salvar)
 - Aviso LGPD na captura
+
+## Autenticação do backoffice
+
+1. No Vercel: **Settings → Environment Variables**
+2. Crie `BACKOFFICE_PASSWORD` com uma senha forte
+3. (Opcional) `BACKOFFICE_SECRET` para assinar o token
+4. Redeploy
+5. Acesse `/#backoffice` e entre com a senha
+
+A senha **não** vai no bundle do frontend. O login chama `/api/auth`.
+
+Local: defina `VITE_BACKOFFICE_DEV_PASSWORD` no `.env.local` (não versionar).
+
+## Sprint 2
+
+- Auth server-side do painel
+- CET/TAEG aproximado na etapa Bacen e no PDF
+- Validação de consistência séries mensal ↔ anual
