@@ -99,3 +99,11 @@ Local: defina `VITE_BACKOFFICE_DEV_PASSWORD` no `.env.local` (não versionar).
 - Auth server-side do painel
 - CET/TAEG aproximado na etapa Bacen e no PDF
 - Validação de consistência séries mensal ↔ anual
+
+## Sprint 3
+
+- Data do contrato: chips de ano + selects Mês/Ano (mobile-friendly)
+- PWA: manifest + service worker
+- Webhook opcional no pagamento (n8n/Make/Sheets)
+- Worker Cloudflare em `workers/bacen-worker.js`
+- Proxy Bacen via `VITE_BACEN_PROXY`

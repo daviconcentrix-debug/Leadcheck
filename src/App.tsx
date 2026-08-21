@@ -48,6 +48,14 @@ import {
   verifyBackofficeSession,
 } from "./lib/auth";
 import { annualEffectiveFromMonthly, formatCet } from "./lib/cet";
+import {
+  buildContractYm,
+  monthOptions,
+  parseContractYm,
+  quickYearChips,
+  yearOptions,
+} from "./lib/contract-date";
+import { notifyWebhook } from "./lib/webhook";
 
 type View = "funnel" | "backoffice";
 
@@ -405,6 +413,7 @@ function Funnel({ onBackoffice: _onBackoffice }: { onBackoffice: () => void }) {
                 upsertLead(next);
                 setLead(next);
                 setDone(true);
+                void notifyWebhook(settings.webhookUrl, next);
               }}
             >
               Já paguei · liberar pré-laudo
@@ -436,10 +445,6 @@ function StepCapture({
   const [contractDate, setContractDate] = useState(initial.contractDate);
   const [parcelaRaw, setParcelaRaw] = useState(initial.parcela ? maskParcela(String(Math.round(initial.parcela * 100))) : "");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const maxMonth = useMemo(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  }, []);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -493,8 +498,86 @@ function StepCapture({
           <Input id="cpf" inputMode="numeric" value={maskCpf(cpf)} invalid={!!errors.cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" />
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Assinatura do contrato" htmlFor="contrato" error={errors.contractDate}>
-            <Input id="contrato" type="month" max={maxMonth} min="2000-01" value={contractDate} invalid={!!errors.contractDate} onChange={(e) => setContractDate(e.target.value)} />
+          <Field label="Quando assinou o contrato?" htmlFor="contrato-mes" error={errors.contractDate}>
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {quickYearChips().map((y) => {
+                  const selected = parseContractYm(contractDate).year === String(y);
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => {
+                        const { month } = parseContractYm(contractDate);
+                        setContractDate(buildContractYm(String(y), month || "06"));
+                      }}
+                      style={{
+                        border: selected ? "1.5px solid var(--forest)" : "1px solid var(--line)",
+                        background: selected ? "var(--ok-soft)" : "var(--surface)",
+                        color: "var(--ink)",
+                        borderRadius: 999,
+                        padding: "8px 12px",
+                        fontSize: 13,
+                        fontWeight: selected ? 600 : 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 8 }}>
+                <select
+                  id="contrato-mes"
+                  value={parseContractYm(contractDate).month}
+                  onChange={(e) => {
+                    const { year } = parseContractYm(contractDate);
+                    const y = year || String(new Date().getFullYear());
+                    setContractDate(buildContractYm(y, e.target.value));
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: errors.contractDate ? "1.5px solid var(--alert)" : "1px solid var(--line)",
+                    background: "var(--surface)",
+                    fontSize: 16,
+                    color: "var(--ink)",
+                  }}
+                >
+                  <option value="">Mês</option>
+                  {monthOptions().map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+                <select
+                  id="contrato-ano"
+                  value={parseContractYm(contractDate).year}
+                  onChange={(e) => {
+                    const { month } = parseContractYm(contractDate);
+                    setContractDate(buildContractYm(e.target.value, month || "01"));
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: errors.contractDate ? "1.5px solid var(--alert)" : "1px solid var(--line)",
+                    background: "var(--surface)",
+                    fontSize: 16,
+                    color: "var(--ink)",
+                  }}
+                >
+                  <option value="">Ano</option>
+                  {yearOptions().map((y) => (
+                    <option key={y} value={String(y)}>{y}</option>
+                  ))}
+                </select>
+              </div>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                Não precisa do dia — só o mês e o ano da assinatura. Se não lembrar o mês, escolha o mais próximo.
+              </p>
+            </div>
           </Field>
           <Field label="Valor da parcela" htmlFor="parcela" error={errors.parcela}>
             <Input id="parcela" inputMode="numeric" value={parcelaRaw} invalid={!!errors.parcela} onChange={(e) => setParcelaRaw(maskParcela(e.target.value))} placeholder="R$ 0,00" />
@@ -1173,6 +1256,16 @@ function Backoffice({ onHome }: { onHome: () => void }) {
           <Field label="WhatsApp do especialista">
             <Input inputMode="numeric" value={settings.specialistWhatsapp} onChange={(e) => updateSettings("specialistWhatsapp", e.target.value)} placeholder="11999999999" />
           </Field>
+          <Field label="Webhook (opcional — n8n / Make / Apps Script)">
+            <Input
+              value={settings.webhookUrl}
+              onChange={(e) => updateSettings("webhookUrl", e.target.value)}
+              placeholder="https://hooks.exemplo.com/..."
+            />
+          </Field>
+          <p style={{ margin: "-8px 0 0", fontSize: 12, color: "var(--muted)" }}>
+            Ao clicar em “Já paguei”, enviamos JSON do lead para esta URL (CORS liberado no seu fluxo).
+          </p>
         </div>
       </section>
 

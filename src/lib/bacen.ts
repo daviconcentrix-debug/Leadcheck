@@ -41,8 +41,10 @@ const FALLBACK: BacenResult = {
 };
 
 export async function fetchBacenRate(contractDate: string): Promise<BacenResult> {
+  const proxy = (import.meta.env.VITE_BACEN_PROXY as string | undefined)?.trim();
+  const endpoint = proxy || "/api/bacen";
   try {
-    const res = await fetch("/api/bacen", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contractDate }),

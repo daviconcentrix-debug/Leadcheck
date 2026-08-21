@@ -1,0 +1,18 @@
+{
+  "name": "Parcela Justa",
+  "short_name": "Parcela Justa",
+  "description": "Pré-laudo de revisão de juros de financiamento de veículos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3EFE7",
+  "theme_color": "#1E3D32",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

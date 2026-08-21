@@ -4,6 +4,8 @@ export type AppSettings = {
   merchantCity: string;
   amount: number;
   specialistWhatsapp: string;
+  /** URL opcional (n8n / Make / Apps Script) ao confirmar pagamento */
+  webhookUrl: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -12,6 +14,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   merchantCity: "SAO PAULO",
   amount: 4.9,
   specialistWhatsapp: "",
+  webhookUrl: "",
 };
 
 export const SETTINGS_KEY = "parcela-justa-settings";
@@ -29,6 +32,7 @@ export function loadSettings(): AppSettings {
       ...DEFAULT_SETTINGS,
       ...parsed,
       amount: Number(parsed.amount) > 0 ? Number(parsed.amount) : DEFAULT_SETTINGS.amount,
+      webhookUrl: typeof parsed.webhookUrl === "string" ? parsed.webhookUrl : "",
     };
   } catch {
     return DEFAULT_SETTINGS;
