@@ -18,7 +18,7 @@ const FALLBACK: BacenResult = {
   annualRate: 26.44,
   period: "junho de 2026",
   observedAt: "01/06/2026",
-  seriesName: "Aquisição de veículos — recursos livres (SGS 25471 / 20749)",
+  seriesName: "Aquisição de veículos — PF — recursos livres (SGS 25471 mensal / 20749 anual)",
   history: [
     { month: "2025-07", monthlyRate: 2.03 },
     { month: "2025-08", monthlyRate: 2.03 },

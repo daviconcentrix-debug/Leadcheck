@@ -71,3 +71,13 @@ src/lib/              # CPF, Pix, leads, settings, Bacen client
 public/favicon.svg
 vercel.json           # SPA rewrites
 ```
+
+## Sprint 1 (implementado)
+
+- Catálogo SGS veículos PF (25471 mensal + 20749 anual)
+- Simulação: parcela se taxa = média Bacen + economia R$/%
+- Score automático (quitação 100 / prestamista 70 / reduzir 40 + bônus)
+- Fila do dia: pagos sem contato + botão Já falei
+- Template WhatsApp por flag
+- Pré-laudo em PDF (imprimir / salvar)
+- Aviso LGPD na captura

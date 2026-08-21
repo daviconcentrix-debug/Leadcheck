@@ -24,6 +24,8 @@ export type Lead = {
   paid: boolean;
   paidAt: string | null;
   pixPayload: string | null;
+  /** Quando a equipe marcou "já falei" */
+  contactedAt: string | null;
 };
 
 export const LEADS_KEY = "parcela-justa-leads";
@@ -37,7 +39,12 @@ export function loadLeads(): Lead[] {
     const raw = localStorage.getItem(LEADS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Lead[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((lead) => ({
+      ...lead,
+      contactedAt: lead.contactedAt ?? null,
+      flags: lead.flags ?? emptyFlags(),
+    }));
   } catch {
     return [];
   }
@@ -74,7 +81,24 @@ export function createLeadDraft(): Lead {
     paid: false,
     paidAt: null,
     pixPayload: null,
+    contactedAt: null,
   };
+}
+
+/** Leads pagos e ainda não contactados (fila do dia). */
+export function unpaidContactQueue(leads: Lead[]) {
+  return leads
+    .filter((l) => l.paid && !l.contactedAt)
+    .sort((a, b) => (b.paidAt || b.createdAt).localeCompare(a.paidAt || a.createdAt));
+}
+
+export function markContacted(leadId: string) {
+  const leads = loadLeads();
+  const next = leads.map((l) =>
+    l.id === leadId ? { ...l, contactedAt: new Date().toISOString() } : l,
+  );
+  saveLeads(next);
+  return next;
 }
 
 export function leadPriority(lead: Lead) {

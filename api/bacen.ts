@@ -1,7 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const SERIES_MONTHLY = 25471;
-const SERIES_ANNUAL = 20749;
+/** Catálogo veículos PF — alinhado a sgs-peritos / uso pericial */
+const SERIES_MONTHLY = 25471; // % a.m. aquisição veículos PF recursos livres
+const SERIES_ANNUAL = 20749; // % a.a. mesma modalidade
+const SERIES_LABEL =
+  "Aquisição de veículos — PF — recursos livres (SGS 25471 mensal / 20749 anual)";
 
 type RawPoint = { data: string; valor: string };
 
@@ -10,7 +13,7 @@ const FALLBACK = {
   annualRate: 26.44,
   period: "junho de 2026",
   observedAt: "01/06/2026",
-  seriesName: "Aquisição de veículos — recursos livres (SGS 25471 / 20749)",
+  seriesName: SERIES_LABEL,
   history: [
     { month: "2025-07", monthlyRate: 2.03 },
     { month: "2025-08", monthlyRate: 2.03 },
@@ -123,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       annualRate: annualPoint ? Number(annualPoint.valor) : null,
       period: monthLabel(ym),
       observedAt: monthlyPoint.data,
-      seriesName: "Aquisição de veículos — recursos livres (SGS 25471 / 20749)",
+      seriesName: SERIES_LABEL,
       history,
       source: "bacen",
     });

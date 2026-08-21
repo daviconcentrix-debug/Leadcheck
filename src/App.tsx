@@ -19,9 +19,11 @@ import {
   leadPriority,
   leadsToCsv,
   loadLeads,
+  markContacted,
   priorityLabel,
   saveLeads,
   SHEETS_FORMULAS,
+  unpaidContactQueue,
   upsertLead,
   type FunnelFlags,
   type Lead,
@@ -34,6 +36,11 @@ import {
   saveSettings,
   type AppSettings,
 } from "./lib/settings";
+import { openPrelaudoPrint } from "./lib/pdf-prelaudo";
+import { scoreLead, tierLabel } from "./lib/score";
+import { estimateSavingsVsBacen, type SavingsEstimate } from "./lib/simulate";
+import { buildSpecialistMessage, clientWaLink } from "./lib/whatsapp-templates";
+import { SGS_VEICULOS_PF } from "./lib/sgs-catalog";
 
 type View = "funnel" | "backoffice";
 
@@ -500,6 +507,10 @@ function StepCapture({
       <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
         Dados oficiais do Banco Central. Sem consulta ao SPC. Pré-laudo por R$ 4,90.
       </p>
+      <p style={{ margin: 0, fontSize: 11, color: "var(--subtle)", lineHeight: 1.5 }}>
+        Ao continuar, você autoriza o uso de nome, WhatsApp e CPF apenas para esta análise e contato da equipe (LGPD).
+        Os dados ficam neste dispositivo até você solicitar exclusão ou limpar o navegador. Não vendemos dados a terceiros.
+      </p>
     </form>
   );
 }
@@ -618,6 +629,34 @@ function StepBacen({
           </div>
         </div>
       ) : null}
+
+      {result.monthlyRate != null ? (() => {
+        const savings = estimateSavingsVsBacen({
+          currentInstallment: parcela,
+          bacenMonthlyPercent: result.monthlyRate,
+        });
+        if (!savings) return null;
+        return (
+          <div style={{ background: "var(--ok-soft)", borderRadius: "var(--radius-xl)", padding: 16, boxShadow: "var(--shadow)" }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ok)" }}>
+              Se a taxa fosse a média Bacen
+            </p>
+            <p style={{ margin: "8px 0 0", fontSize: 15, lineHeight: 1.4 }}>
+              Parcela estimada: <strong>{formatBRL(savings.bacenInstallment)}</strong>
+              {" "}· economia de <strong>{formatBRL(savings.monthlySavings)}/mês</strong>
+              {" "}({savings.savingsPercent.toFixed(1).replace(".", ",")}%)
+            </p>
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--muted)" }}>
+              No prazo de {savings.months} meses, cerca de <strong>{formatBRL(savings.totalSavings)}</strong> a menos em juros.
+              Simulação orientativa (prazo e principal estimados a partir da sua parcela).
+            </p>
+          </div>
+        );
+      })() : null}
+
+      <p style={{ margin: 0, fontSize: 11, color: "var(--subtle)" }}>
+        Séries: {SGS_VEICULOS_PF.mensal.code} (% a.m.) e {SGS_VEICULOS_PF.anual.code} (% a.a.) — {SGS_VEICULOS_PF.mensal.label.split("—")[0].trim()}.
+      </p>
 
       <Button type="button" size="lg" onClick={onContinue}>
         Quero revisar meu contrato
@@ -828,11 +867,19 @@ function Success({
   specialistWhatsapp: string;
   onReset: () => void;
 }) {
-  const wa = specialistWhatsapp.replace(/\D/g, "");
-  const message = encodeURIComponent(
-    `Olá, sou ${lead.nome}. Acabei de liberar o pré-laudo da Parcela Justa. Contrato ${lead.contractDate}, parcela ${formatBRL(lead.parcela)}.`,
-  );
-  const href = wa ? `https://wa.me/55${wa.replace(/^55/, "")}?text=${message}` : null;
+  const savings = lead.bacenMonthly != null
+    ? estimateSavingsVsBacen({ currentInstallment: lead.parcela, bacenMonthlyPercent: lead.bacenMonthly })
+    : null;
+  const score = scoreLead(lead);
+  const clientMsg = [
+    `Olá! Sou ${lead.nome}.`,
+    `Liberei o pré-laudo da Parcela Justa.`,
+    `Contrato: ${lead.contractDate} · Parcela: ${formatBRL(lead.parcela)}.`,
+    lead.bacenMonthly != null ? `Média Bacen na época: ${formatRate(lead.bacenMonthly)} a.m.` : "",
+  ].filter(Boolean).join("\n");
+  const href = specialistWhatsapp
+    ? clientWaLink(specialistWhatsapp, clientMsg)
+    : null;
 
   return (
     <div className="rise-in" style={{ display: "grid", gap: 24, textAlign: "center", paddingTop: 24 }}>
@@ -844,12 +891,25 @@ function Success({
           Pré-laudo liberado
         </h1>
         <p style={{ margin: "8px 0 0", color: "var(--muted)" }}>
-          Seus dados foram organizados para a equipe. Um especialista entra em contato pelo WhatsApp informado.
+          Protocolo {lead.id.slice(0, 8).toUpperCase()} · prioridade interna: {tierLabel(score.tier)} ({score.points} pts).
+          Um especialista entra em contato pelo WhatsApp informado.
         </p>
       </div>
+      {savings ? (
+        <div style={{ textAlign: "left", background: "var(--surface)", borderRadius: "var(--radius-lg)", padding: 16, boxShadow: "var(--shadow)" }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>Economia estimada vs média Bacen</p>
+          <p style={{ margin: "6px 0 0", fontSize: 18, fontWeight: 600 }}>{formatBRL(savings.totalSavings)} no prazo simulado</p>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted)" }}>
+            {formatBRL(savings.monthlySavings)}/mês ({savings.savingsPercent.toFixed(1).replace(".", ",")}%)
+          </p>
+        </div>
+      ) : null}
+      <Button type="button" size="lg" onClick={() => openPrelaudoPrint(lead, savings)}>
+        Baixar pré-laudo (PDF)
+      </Button>
       {href ? (
         <a href={href} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
-          <Button type="button" size="lg" style={{ width: "100%" }}>
+          <Button type="button" variant="secondary" size="lg" style={{ width: "100%" }}>
             Falar com o especialista
           </Button>
         </a>
@@ -857,6 +917,9 @@ function Success({
       <Button type="button" variant="ghost" size="lg" onClick={onReset}>
         Nova consulta
       </Button>
+      <p style={{ margin: 0, fontSize: 11, color: "var(--subtle)" }}>
+        Seus dados ficam neste aparelho. Para apagar, limpe o site no navegador ou peça exclusão à equipe (LGPD).
+      </p>
     </div>
   );
 }
@@ -923,6 +986,52 @@ function Backoffice({ onHome }: { onHome: () => void }) {
           </div>
         ))}
       </section>
+
+      {(() => {
+        const queue = unpaidContactQueue(leads);
+        if (!queue.length) return null;
+        return (
+          <section style={{ background: "var(--alert-soft)", borderRadius: "var(--radius-xl)", padding: 20, marginBottom: 24, boxShadow: "var(--shadow)" }}>
+            <h2 className="font-display" style={{ margin: 0, fontSize: 20, color: "var(--alert)" }}>
+              Fila do dia · {queue.length} pago(s) sem contato
+            </h2>
+            <p style={{ margin: "6px 0 14px", fontSize: 13, color: "var(--muted)" }}>
+              Leads que pagaram o pré-laudo e ainda não foram marcados como contactados.
+            </p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+              {queue.map((lead) => {
+                const sc = scoreLead(lead);
+                const msg = buildSpecialistMessage(lead);
+                const wa = clientWaLink(lead.whatsapp, msg);
+                return (
+                  <li key={lead.id} style={{ background: "var(--surface)", borderRadius: 12, padding: 12, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <strong>{lead.nome}</strong>
+                      <span style={{ marginLeft: 8, fontSize: 12, color: "var(--muted)" }}>{tierLabel(sc.tier)} · {sc.points} pts</span>
+                      <div style={{ fontSize: 13, color: "var(--muted)" }}>{lead.whatsapp} · {formatBRL(lead.parcela)}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {wa ? (
+                        <a href={wa} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                          <Button type="button" size="sm">WhatsApp</Button>
+                        </a>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setLeads(markContacted(lead.id))}
+                      >
+                        Já falei
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })()}
 
       <section style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", padding: 20, boxShadow: "var(--shadow)", marginBottom: 32 }}>
         <h2 className="font-display" style={{ margin: 0, fontSize: 22 }}>
@@ -1048,10 +1157,40 @@ function Backoffice({ onHome }: { onHome: () => void }) {
                       <div style={{ fontVariantNumeric: "tabular-nums" }}>{lead.bacenMonthly != null ? `${formatRate(lead.bacenMonthly)} a.m.` : "—"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 12, color: "var(--muted)" }}>Pago</div>
-                      <div>{lead.paid ? "Sim" : "Não"}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>Pago / contato</div>
+                      <div>{lead.paid ? "Pago" : "Não"}{lead.contactedAt ? " · falado" : lead.paid ? " · pendente" : ""}</div>
                     </div>
                   </div>
+                  {(() => {
+                    const sc = scoreLead(lead);
+                    const savings = lead.bacenMonthly != null
+                      ? estimateSavingsVsBacen({ currentInstallment: lead.parcela, bacenMonthlyPercent: lead.bacenMonthly })
+                      : null;
+                    const msg = buildSpecialistMessage(lead);
+                    const wa = clientWaLink(lead.whatsapp, msg);
+                    return (
+                      <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                          Score {sc.points} · {tierLabel(sc.tier)}
+                          {savings ? ` · econ. ~${formatBRL(savings.monthlySavings)}/mês` : ""}
+                        </span>
+                        <div style={{ flex: 1 }} />
+                        {wa ? (
+                          <a href={wa} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                            <Button type="button" size="sm">WhatsApp (template)</Button>
+                          </a>
+                        ) : null}
+                        <Button type="button" variant="secondary" size="sm" onClick={() => openPrelaudoPrint(lead, savings)}>
+                          Pré-laudo PDF
+                        </Button>
+                        {lead.paid && !lead.contactedAt ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setLeads(markContacted(lead.id))}>
+                            Já falei
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}
